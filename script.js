@@ -2,9 +2,7 @@
 GGR472 LAB 4: Incorporating GIS Analysis into web maps using Turf.js 
 --------------------------------------------------------------------*/
 
-/*--------------------------------------------------------------------
-Step 1: INITIALIZE MAP
---------------------------------------------------------------------*/
+
 // Define access token
 mapboxgl.accessToken = 'pk.eyJ1IjoibmF0a2VjIiwiYSI6ImNscjZudnpsdjJhcm8ya21jMXJuY29iYWwifQ.KonIboWryT9OOwjzC-0GTg'; //****ADD YOUR PUBLIC ACCESS TOKEN*****
 
@@ -18,38 +16,118 @@ const map = new mapboxgl.Map({
 
 
 
-/*--------------------------------------------------------------------
-Step 2: VIEW GEOJSON POINT DATA ON MAP
---------------------------------------------------------------------*/
-//HINT: Create an empty variable
-//      Use the fetch method to access the GeoJSON from your online repository
-//      Convert the response to JSON format and then store the response in your new variable
-
-let pedcol;
+//Fetching and converting data to a GeoJSON format
+let collisiongeojson;
 
 // Fetch GeoJSON from URL and store response
-fetch('https://raw.githubusercontent.com/smith-lg/ggr472-wk9-turf/main/data/torontomusicvenues.geojson')
+fetch('https://natalikec.github.io/Lab4/data/pedcyc_collision_06-21.geojson')
     .then(response => response.json())
     .then(response => {
-        console.log(response); //Check response in console
-        musgeojson = response; // Store geojson as variable using URL from fetch response
+
+        collisiongeojson = response; // Store geojson as variable using URL from fetch response
     });
 
-/*--------------------------------------------------------------------
-    Step 3: CREATE BOUNDING BOX AND HEXGRID
---------------------------------------------------------------------*/
-//HINT: All code to create and view the hexgrid will go inside a map load event handler
-//      First create a bounding box around the collision point data then store as a feature collection variable
-//      Access and store the bounding box coordinates as an array variable
-//      Use bounding box coordinates as argument in the turf hexgrid function
+map.on('load', () => {
+
+
+    //Creating Hex Grid + Adding code to get bbox geometry in correct order
+    let bboxgeojson;
+
+    let bbox = turf.envelope(collisiongeojson)
+    //increaseing hexgrid size so all points fall within it
+    let bboxscaled = turf.transformScale(bbox, 1.10);
+
+    bboxgeojson = {
+        "type": "FeatureCollection",
+        "feature": [bboxscaled]
+
+    }
+
+    //In correct order
+    let bboxcoords = [bboxscaled.geometry.coordinates[0][0][0],
+    bboxscaled.geometry.coordinates[0][0][1],
+    bboxscaled.geometry.coordinates[0][2][0],
+    bboxscaled.geometry.coordinates[0][2][1]
+    ]
+    //each hexigon's size 
+    let hexgeojson = turf.hexGrid(bboxcoords, 0.5, { units: 'kilometers' });
+
+    //Aggregate collisin data by hexgrid
+    let collishex = turf.collect(hexgeojson, collisiongeojson, '_id', 'values')
+    console.log(collishex)
+
+    //Forloop
+    let maxcollis = 0;
+    collishex.features.forEach((feature) => { //for each feature in the array, the following code will run
+        feature.properties.COUNT = feature.properties.values.length //counts the amount of vallues and stores it in COUNT
+        if (feature.properties.COUNT > maxcollis) { //if the COUNT value is bigger than the maxcollis value, 
+            console.log(feature); //if the above is true, log the feature
+            maxcollis = feature.properties.COUNT // if the conditional if statement is true, it updates the maxcollis value 
+        }
+    });
+
+    //Display Data 
+    //Hex Grid
+    map.addSource('collis-hex', {
+        type: 'geojson',
+        data: hexgeojson
+    });
+
+    map.addLayer({
+        'id': 'collis-hex-fill',
+        'type': 'fill',
+        'source': 'collis-hex',
+        'paint': {
+            'fill-color': [
+                'step',
+                ['get', 'COUNT'],
+                '#380111',
+                10, '#bd0026',
+                25, '#f07577'
+            ],
+            'fill-opacity': 0.5,
+            'fill-outline-color': "white"
+        }
+    });
+    //Collision Points
+    map.addSource('collision', {
+        type: 'geojson',
+        data: collisiongeojson
+    });
+
+    map.addLayer({
+        'id': 'collisionpoints',
+        'type': 'circle',
+        'source': 'collision',
+        'paint': {
+            'circle-radius': 5,
+            'circle-color': 'blue'
+        }
+    });
+
+     //Using Checked box to add and remove layers
+    //For Hexgrid
+    document.getElementById('hexcheck').addEventListener('change', (e) => {
+        map.setLayoutProperty(
+            'collis-hex-fill',
+            'visibility',
+            e.target.checked ? 'visible' : 'none'
+        );
+    });
+    //For Points
+    document.getElementById('pointcheck').addEventListener('change', (e) => {
+        map.setLayoutProperty(
+            'collisionpoints',
+            'visibility',
+            e.target.checked ? 'visible' : 'none'
+        );
+    });
+
+});
 
 
 
-/*--------------------------------------------------------------------
-Step 4: AGGREGATE COLLISIONS BY HEXGRID
---------------------------------------------------------------------*/
-//HINT: Use Turf collect function to collect all '_id' properties from the collision points data for each heaxagon
-//      View the collect output in the console. Where there are no intersecting points in polygons, arrays will be empty
+
 
 
 
@@ -62,5 +140,7 @@ Step 4: AGGREGATE COLLISIONS BY HEXGRID
 //        - The COUNT attribute
 //        - The maximum number of collisions found in a hexagon
 //      Add a legend and additional functionality including pop-up windows
+
+
 
 
