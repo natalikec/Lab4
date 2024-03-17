@@ -13,4 +13,5 @@ The navigation bar includes a link to the data source.
 
 ### Data Sources 
 - Point Feature: [Collision Data](https://open.toronto.ca/dataset/motor-vehicle-collisions-involving-killed-or-seriously-injured-persons/)
+
 The data was edited by the professor in QGIS
