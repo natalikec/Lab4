@@ -10,10 +10,29 @@ mapboxgl.accessToken = 'pk.eyJ1IjoibmF0a2VjIiwiYSI6ImNscjZudnpsdjJhcm8ya21jMXJuY
 const map = new mapboxgl.Map({
     container: 'map', // container id in HTML
     style: 'mapbox://styles/mapbox/standard',  // ****ADD MAP STYLE HERE *****
-    center: [-79.39, 43.65],  // starting point, longitude/latitude
-    zoom: 12 // starting zoom level
+    center: [-79.376621, 43.687573],  // starting point, longitude/latitude
+    zoom: 11 // starting zoom level
 });
 
+//Map Controls 
+map.addControl(new mapboxgl.NavigationControl());
+map.addControl(new mapboxgl.FullscreenControl());
+//declaring geocoder variable and seeting search to only Canada 
+const geocoder = new MapboxGeocoder({
+    accessToken: mapboxgl.accessToken,
+    mapboxgl: mapboxgl,
+    countries: "ca"
+});
+document.getElementById('geocoder').appendChild(geocoder.onAdd(map));
+
+//Event listener for returning viewer to original map extent
+document.getElementById('returnbutton').addEventListener('click', () => {
+    map.flyTo({
+        center: [-79.376621, 43.687573],
+        zoom: 11,
+        essential: true
+    });
+});
 
 
 //Fetching and converting data to a GeoJSON format
@@ -50,7 +69,7 @@ map.on('load', () => {
     bboxscaled.geometry.coordinates[0][2][1]
     ]
     //each hexigon's size 
-    let hexgeojson = turf.hexGrid(bboxcoords, 0.5, { units: 'kilometers' });
+    let hexgeojson = turf.hexGrid(bboxcoords, 0.3, { units: 'kilometers' });
 
     //Aggregate collisin data by hexgrid
     let collishex = turf.collect(hexgeojson, collisiongeojson, '_id', 'values')
@@ -73,6 +92,7 @@ map.on('load', () => {
         data: hexgeojson
     });
 
+    // creating a step color gradiant going up in 5s (adding the 0.5 to have a 0 value)
     map.addLayer({
         'id': 'collis-hex-fill',
         'type': 'fill',
@@ -81,14 +101,18 @@ map.on('load', () => {
             'fill-color': [
                 'step',
                 ['get', 'COUNT'],
-                '#380111',
-                10, '#bd0026',
-                25, '#f07577'
+                '#848287',
+                0.5, '#d4b9da',
+                5, '#c994c7',
+                10, '#df65b0',
+                15, '#dd1c77',
+                20, '#980043'
             ],
-            'fill-opacity': 0.5,
-            'fill-outline-color': "white"
+            'fill-opacity': 0.85,
+            'fill-outline-color': "grey"
         }
     });
+
     //Collision Points
     map.addSource('collision', {
         type: 'geojson',
@@ -100,12 +124,18 @@ map.on('load', () => {
         'type': 'circle',
         'source': 'collision',
         'paint': {
-            'circle-radius': 5,
-            'circle-color': 'blue'
+            'circle-radius': [
+                "interpolate", ["linear"], ["zoom"],
+                // zoom is 11 or less -> circle radius 1px
+                11, 1,
+                // zoom is 14 or more -> circle radius 5px
+                14, 5
+            ],
+            'circle-color': 'black'
         }
     });
 
-     //Using Checked box to add and remove layers
+    //Using Checked box to add and remove layers
     //For Hexgrid
     document.getElementById('hexcheck').addEventListener('change', (e) => {
         map.setLayoutProperty(
@@ -123,24 +153,76 @@ map.on('load', () => {
         );
     });
 
+  // Adding pop up for collision points
+    map.on('click', 'collisionpoints', (e) => {
+         //event listener for clicking on point
+        const coordinates = e.features[0].geometry.coordinates.slice();
+    
+        // Retrieves properties
+        const properties = e.features[0].properties;
+    
+        // Generating text including multiple properties
+        let display = '<h5>Collision Details</h5>';
+        display += '<p><strong>Collision with:</strong> ' + properties.INVTYPE + '</p>';
+        display += '<p><strong>Injury:</strong> ' + properties.INJURY + '</p>';
+        display += '<p><strong>Year:</strong> ' + properties.YEAR + '</p>';
+        display += '<p><strong>Visibility:</strong> ' + properties.VISIBILITY + '</p>';
+       
+    
+    
+        new mapboxgl.Popup()
+            // Creating the popup display
+            .setLngLat(coordinates)
+            // Makes the popup appear at the point features coordinates
+            .setHTML(display)
+            // Retrieves the display property which has been set above
+            .addTo(map);
+        // Adds popup to map
+    });
+
+    //Legend
+    //Declare arrayy variables for labels and colours
+    const legendlabels = [
+        '0',
+        '<5',
+        '5-10',
+        '10-15',
+        '15-20',
+        '>=20'
+    ];
+
+    const legendcolours = [
+        '#848287',
+        '#d4b9da',
+        '#c994c7',
+        '#df65b0',
+        '#dd1c77',
+        '#980043'
+    ];
+
+    //Declare legend variable using legend div tag
+    const legend = document.getElementById('legend');
+
+    //For each layer create a block to put the colour and label in
+    legendlabels.forEach((label, i) => {
+        const color = legendcolours[i];
+
+        const item = document.createElement('div'); //each layer gets a 'row'
+        const key = document.createElement('span'); //add a 'key' to the row (color). 
+
+        key.className = 'legend-key'; //the key will take on the shape and style properties defined in css
+        key.style.backgroundColor = color; // the background color is retreived from the layers array
+
+        const value = document.createElement('span'); //add a value variable to the 'row' in the legend
+        value.innerHTML = `${label}`; //give the value variable text based on the label
+
+        item.appendChild(key); //add the key (color cirlce) to the legend row
+        item.appendChild(value); //add the value to the legend row
+
+        legend.appendChild(item); //add row to the legend
+
+    });
+
 });
-
-
-
-
-
-
-
-// /*--------------------------------------------------------------------
-// Step 5: FINALIZE YOUR WEB MAP
-// --------------------------------------------------------------------*/
-//HINT: Think about the display of your data and usability of your web map.
-//      Update the addlayer paint properties for your hexgrid using:
-//        - an expression
-//        - The COUNT attribute
-//        - The maximum number of collisions found in a hexagon
-//      Add a legend and additional functionality including pop-up windows
-
-
 
 
